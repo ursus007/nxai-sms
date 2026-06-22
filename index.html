@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NXAI SMS Demo Sender</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            500: '#3b82f6',
+                            600: '#1d4ed8',
+                            900: '#1e3a8a',
+                        },
+                        darkbg: '#0b0f19',
+                        cardbg: '#161f30'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0b0f19; font-family: system-ui, -apple-system, sans-serif; }
+        .glass { background: rgba(22, 31, 48, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    </style>
+</head>
+<body class="text-slate-200 min-h-screen flex flex-col">
+
+    <header class="border-b border-slate-800/60 glass sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-500/10 p-2 rounded-xl text-blue-400 border border-blue-500/20">
+                <i data-lucide="cpu" class="w-6 h-6 animate-pulse"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-200 to-cyan-400">NXAI SMS Demo Sender</h1>
+                <p class="text-xs text-slate-400">Panel de Control de Mensajería Inteligente & Conectividad API V2</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-full text-xs font-medium">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            Worker Conectado
+        </div>
+    </header>
+
+    <main class="flex-1 p-6 max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <div class="lg:col-span-2 flex flex-col gap-6">
+            
+            <div class="glass rounded-2xl p-1.5 flex gap-2">
+                <button id="tab-single" onclick="switchMode('single')" class="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all bg-blue-600 text-white shadow-lg shadow-blue-600/20">
+                    <i data-lucide="user" class="w-4 h-4"></i> Envío Individual
+                </button>
+                <button id="tab-bulk" onclick="switchMode('bulk')" class="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/40">
+                    <i data-lucide="layers" class="w-4 h-4"></i> Envío Masivo (Excel/CSV)
+                </button>
+            </div>
+
+            <div id="panel-single" class="glass rounded-3xl p-6 flex flex-col gap-5 transition-all">
+                <h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="smartphone" class="text-blue-400"></i> Destinatario Único</h2>
+                
+                <div class="flex flex-col md:flex-row gap-4">
+                    <div class="flex flex-col gap-1.5 md:w-1/3">
+                        <label class="text-xs text-slate-400 uppercase font-bold tracking-wider">Prefijo</label>
+                        <div class="relative">
+                            <select id="country-prefix" class="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-3 text-slate-200 focus:outline-none focus:border-blue-500 transition-all appearance-none">
+                                <option value="51">🇵🇪 Perú (+51)</option>
+                                <option value="1">🇺🇸 USA / CA (+1)</option>
+                                <option value="34">🇪🇸 España (+34)</option>
+                                <option value="52">🇲🇽 México (+52)</option>
+                                <option value="54">🇦🇷 Argentina (+54)</option>
+                                <option value="56">🇨🇱 Chile (+56)</option>
+                                <option value="57">🇨🇴 Colombia (+57)</option>
+                            </select>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 absolute right-3 top-4 pointer-events-none"></i>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-1.5 flex-1">
+                        <label class="text-xs text-slate-400 uppercase font-bold tracking-wider">Número Celular</label>
+                        <input type="tel" id="sms-phone" placeholder="Ej: 957665935" class="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-4 py-3 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-all">
+                    </div>
+                </div>
+            </div>
+
+            <div id="panel-bulk" class="glass rounded-3xl p-6 hidden flex flex-col gap-5 transition-all">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="file-spreadsheet" class="text-emerald-400"></i> Carga de Base de Datos</h2>
+                    <span id="bulk-count" class="text-xs bg-slate-800 text-slate-400 border border-slate-700 px-2.5 py-1 rounded-md hidden">0 Números Cargados</span>
+                </div>
+
+                <div id="dropzone" class="border-2 border-dashed border-slate-700/80 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 hover:border-emerald-500/50 bg-slate-900/30 cursor-pointer transition-all">
+                    <input type="file" id="excel-file" accept=".xlsx, .xls, .csv" class="hidden">
+                    <div class="bg-emerald-500/10 p-3 rounded-full text-emerald-400">
+                        <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-sm font-medium">Arrastra tu archivo Excel o haz clic para explorar</p>
+                        <p class="text-xs text-slate-500 mt-1">Soporta formatos .xlsx, .xls y .csv (Debe incluir una columna con los números completos)</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass rounded-3xl p-6 flex flex-col gap-4">
+                <div class="flex justify-between items-center">
+                    <label class="text-xs text-slate-400 uppercase font-bold tracking-wider">Contenido del Mensaje (SMS)</label>
+                    <span id="char-counter" class="text-xs text-slate-500 font-medium">0 / 160 (1 SMS GSM)</span>
+                </div>
+                <textarea id="sms-content" rows="4" placeholder="Escribe el cuerpo del mensaje aquí..." class="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl p-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-all resize-none"></textarea>
+                
+                <div id="unicode-alert" class="hidden items-center gap-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 p-3 rounded-xl text-xs">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 flex-shrink-0"></i>
+                    <span>Detectamos caracteres especiales o emojis. La codificación cambió a <strong>Unicode</strong>, reduciendo el límite por SMS a 70 caracteres.</span>
+                </div>
+
+                <button id="btn-send" onclick="executeSmsDispatch()" class="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-3.5 rounded-xl font-semibold shadow-lg shadow-blue-500/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2">
+                    <i data-lucide="send" class="w-4 h-4"></i> Despachar Mensaje(s)
+                </button>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-6">
+            
+            <div class="glass rounded-3xl p-6 flex flex-col gap-4">
+                <h2 class="text-md font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2"><i data-lucide="search" class="w-4 h-4"></i> Rastreador DLR Manual</h2>
+                <div class="flex gap-2">
+                    <input type="text" id="query-id" placeholder="Ingresa el Message ID" class="bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2 text-sm flex-1 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all">
+                    <button onclick="checkMessageStatus()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-2 rounded-xl text-sm font-medium transition-all">
+                        Consultar
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass rounded-3xl p-6 flex flex-col gap-4 flex-1">
+                <div class="flex justify-between items-center border-b border-slate-800/60 pb-3">
+                    <h2 class="text-md font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2"><i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i> Historial de Salida</h2>
+                    <button onclick="clearHistory()" class="text-xs text-slate-500 hover:text-slate-400 flex items-center gap-1"><i data-lucide="trash-2" class="w-3 h-3"></i> Limpiar</button>
+                </div>
+                
+                <div id="history-logs" class="flex flex-col gap-3 overflow-y-auto max-h-[380px] pr-1 text-xs text-slate-400">
+                    <div id="empty-state" class="text-center py-8 text-slate-600 flex flex-col items-center gap-2">
+                        <i data-lucide="inbox" class="w-8 h-8"></i>
+                        Ningún despacho ejecutado en esta sesión.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="glass border-t border-slate-800/60 p-4 text-center text-xs text-slate-500">
+        NXAI SMS Platform Demo Hub &copy; 2026. Procesado bajo canal cifrado TLSv1.2/1.3.
+    </footer>
+
+    <script>
+        const WORKER_URL = "https://nxcloud-sms-backend.ursus006.workers.dev";
+        let operationalMode = 'single';
+        let bulkNumbersList = [];
+
+        // Inicializar Iconografía Lucide
+        lucide.createIcons();
+
+        // Control de Pestañas (Modos de Envío)
+        function switchMode(mode) {
+            operationalMode = mode;
+            const btnSingle = document.getElementById('tab-single');
+            const btnBulk = document.getElementById('tab-bulk');
+            const panelSingle = document.getElementById('panel-single');
+            const panelBulk = document.getElementById('panel-bulk');
+
+            if(mode === 'single') {
+                btnSingle.className = "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all bg-blue-600 text-white shadow-lg shadow-blue-600/20";
+                btnBulk.className = "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/40";
+                panelSingle.classList.remove('hidden');
+                panelBulk.classList.add('hidden');
+            } else {
+                btnBulk.className = "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all bg-emerald-600 text-white shadow-lg shadow-emerald-600/20";
+                btnSingle.className = "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/40";
+                panelBulk.classList.remove('hidden');
+                panelSingle.classList.add('hidden');
+            }
+        }
+
+        // Contador de caracteres con lógica de división (GSM vs Unicode)
+        document.getElementById('sms-content').addEventListener('input', function(e) {
+            const text = e.target.value;
+            const unicodeAlert = document.getElementById('unicode-alert');
+            const counterLabel = document.getElementById('char-counter');
+            
+            // Expresión para validar si el texto contiene caracteres ajenos al alfabeto GSM 7-bit standard
+            const gsmRegex = /^[\u000c\n\r_text_@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#$%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà]*$/;
+            const isUnicode = !gsmRegex.test(text);
+
+            if(isUnicode && text.length > 0) {
+                unicodeAlert.classList.remove('hidden');
+                unicodeAlert.classList.add('flex');
+                let parts = Math.ceil(text.length / 70);
+                if(text.length > 70) parts = Math.ceil(text.length / 67);
+                counterLabel.innerText = `${text.length} car. / Eqv. ${parts || 1} SMS (Unicode)`;
+            } else {
+                unicodeAlert.classList.add('hidden');
+                unicodeAlert.classList.remove('flex');
+                let parts = Math.ceil(text.length / 160);
+                if(text.length > 160) parts = Math.ceil(text.length / 153);
+                counterLabel.innerText = `${text.length} / 160 (Eqv. ${parts || 1} SMS GSM)`;
+            }
+        });
+
+        // Configurar Zona Dropzone de Archivo Masivo
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('excel-file');
+
+        dropzone.addEventListener('click', () => fileInput.click());
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('border-emerald-500', 'bg-emerald-500/5'); });
+        dropzone.addEventListener('dragleave', () => { dropzone.classList.remove('border-emerald-500', 'bg-emerald-500/5'); });
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-emerald-500', 'bg-emerald-500/5');
+            if(e.dataTransfer.files.length) processExcelFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if(e.target.files.length) processExcelFile(e.target.files[0]);
+        });
+
+        // Procesar Archivos con SheetJS
+        function processExcelFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                
+                // Extraer y aplanar números omitiendo filas que no contengan data pura numérica
+                bulkNumbersList = json.flat().map(v => String(v).replace(/\D/g, '')).filter(v => v.length >= 8);
+                
+                if(bulkNumbersList.length > 0) {
+                    const lblCount = document.getElementById('bulk-count');
+                    lblCount.innerText = `${bulkNumbersList.length} Números Cargados`;
+                    lblCount.classList.remove('hidden');
+                    alert(`Éxito: Se cargaron ${bulkNumbersList.length} números válidos desde tu archivo.`);
+                } else {
+                    alert('No se detectaron números válidos en la primera hoja del archivo.');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Ejecutar Envío Real de SMS
+        async function executeSmsDispatch() {
+            const content = document.getElementById('sms-content').value.trim();
+            const btn = document.getElementById('btn-send');
+            if(!content) return alert('Por favor, redacta el cuerpo del mensaje.');
+
+            let targetPhones = '';
+
+            if(operationalMode === 'single') {
+                const prefix = document.getElementById('country-prefix').value;
+                const number = document.getElementById('sms-phone').value.trim().replace(/\D/g, '');
+                if(!number) return alert('Por favor ingresa un número celular válido.');
+                targetPhones = prefix + number;
+            } else {
+                if(bulkNumbersList.length === 0) return alert('No has cargado ninguna base de datos en Excel/CSV todavía.');
+                targetPhones = bulkNumbersList.join(',');
+            }
+
+            // Cambiar Estado del Botón a Cargando
+            btn.disabled = true;
+            btn.innerText = "Despachando a la API...";
+
+            try {
+                const response = await fetch(`${WORKER_URL}/send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone: targetPhones, content: content })
+                });
+                
+                const data = await response.json();
+                addLogToHistory(data, targetPhones, content);
+            } catch (err) {
+                alert('Fallo de Red o de CORS al conectar con tu Worker.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i data-lucide="send" class="w-4 h-4"></i> Despachar Mensaje(s)`;
+                lucide.createIcons();
+            }
+        }
+
+        // Agregar Tarjeta con Reporte de Entrega (DLR UI) Dinámico al Panel Derecho
+        function addLogToHistory(res, target, content) {
+            const container = document.getElementById('history-logs');
+            const emptyState = document.getElementById('empty-state');
+            if(emptyState) emptyState.remove();
+
+            const isSuccess = res.code === "0" || res.code === 0;
+            const logCard = document.createElement('div');
+            logCard.className = "p-4 rounded-xl border flex flex-col gap-3 transition-all bg-slate-900/40 " + (isSuccess ? 'border-emerald-500/20' : 'border-rose-500/20');
+            
+            const timestamp = new Date().toLocaleTimeString();
+
+            // Renderizar la Línea de Tiempo del SMS (Visual Tracking System)
+            logCard.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <span class="font-mono text-[11px] text-slate-500">${timestamp}</span>
+                    <span class="px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-bold ${isSuccess ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}">
+                        ${isSuccess ? 'Aceptado por NX' : 'Error'}
+                    </span>
+                </div>
+                <p class="font-medium text-slate-300">Destino: <span class="text-blue-400 font-mono">${target.length > 25 ? target.substring(0,25)+'...' : target}</span></p>
+                <p class="italic text-slate-500 line-clamp-1">"${content}"</p>
+                
+                ${isSuccess ? `
+                <div class="mt-2 flex items-center justify-between relative before:absolute before:h-[2px] before:w-full before:bg-slate-800 before:top-2.5 before:left-0 before:z-0">
+                    <div class="z-10 bg-slate-900 px-1 text-center">
+                        <div class="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] mx-auto"><i data-lucide="check" class="w-3 h-3"></i></div>
+                        <span class="text-[9px] text-blue-400 block mt-1">Enviado</span>
+                    </div>
+                    <div class="z-10 bg-slate-900 px-1 text-center">
+                        <div class="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px] mx-auto"><i data-lucide="clock" class="w-3 h-3"></i></div>
+                        <span class="text-[9px] text-amber-400 block mt-1">Operador</span>
+                    </div>
+                    <div class="z-10 bg-slate-900 px-1 text-center">
+                        <div id="dlr-dot-${res.messageid}" class="w-5 h-5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-[10px] mx-auto"><i data-lucide="help-circle" class="w-3 h-3"></i></div>
+                        <span id="dlr-text-${res.messageid}" class="text-[9px] text-slate-500 block mt-1">DLR Pendiente</span>
+                    </div>
+                </div>
+                <div class="bg-slate-950/80 p-2 rounded-lg font-mono text-[10px] text-slate-400 border border-slate-800 flex items-center justify-between mt-1">
+                    <span>ID: ${res.messageid}</span>
+                    <button onclick="copyToClipboard('${res.messageid}')" class="hover:text-white transition-all"><i data-lucide="copy" class="w-3 h-3"></i></button>
+                </div>
+                ` : `
+                <div class="text-rose-400 bg-rose-500/5 p-2 rounded border border-rose-500/10 text-[10px]">
+                    Motivo: ${res.result || 'Error desconocido en los parámetros'}
+                </div>
+                `}
+            `;
+
+            container.insertBefore(logCard, container.firstChild);
+            lucide.createIcons();
+
+            // Auto-rastreo inmediato si la petición fue exitosa
+            if(isSuccess) {
+                setTimeout(() => autoFetchDlr(res.messageid), 3000);
+            }
+        }
+
+        // Consultar manualmente por ID
+        async function checkMessageStatus() {
+            const msgId = document.getElementById('query-id').value.trim();
+            if(!msgId) return alert('Por favor escribe un Message ID para consultar.');
+            
+            try {
+                const response = await fetch(`${WORKER_URL}/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messageid: msgId })
+                });
+                const data = await response.json();
+                alert(`Estado en NXCloud:\nCódigo: ${data.code}\nRespuesta: ${JSON.stringify(data)}`);
+            } catch (e) {
+                alert('No se pudo completar la consulta DLR.');
+            }
+        }
+
+        // Pooling de DLR Automático a los 3 segundos del envío para actualizar la línea de tiempo
+        async function autoFetchDlr(messageId) {
+            try {
+                const response = await fetch(`${WORKER_URL}/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messageid: messageId })
+                });
+                const data = await response.json();
+                
+                const dot = document.getElementById(`dlr-dot-${messageId}`);
+                const txt = document.getElementById(`dlr-text-${messageId}`);
+                
+                if(dot && txt) {
+                    // Si el código de consulta retorna exitoso (el mensaje fue entregado al celular)
+                    if(data.code === 0 || data.code === "0") {
+                        dot.className = "w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] mx-auto";
+                        dot.innerHTML = `<i data-lucide="check-check" class="w-3 h-3"></i>`;
+                        txt.className = "text-[9px] text-emerald-400 block mt-1";
+                        txt.innerText = "Entregado ✔";
+                    } else {
+                        dot.className = "w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center text-[10px] mx-auto";
+                        dot.innerHTML = `<i data-lucide="x" class="w-3 h-3"></i>`;
+                        txt.className = "text-[9px] text-rose-400 block mt-1";
+                        txt.innerText = "Falló u Omitido";
+                    }
+                    lucide.createIcons();
+                }
+            } catch (e) {
+                console.error("Fallo al consultar DLR automático para " + messageId);
+            }
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text);
+            alert('¡ID copiado al portapapeles!');
+        }
+
+        function clearHistory() {
+            document.getElementById('history-logs').innerHTML = `
+                <div id="empty-state" class="text-center py-8 text-slate-600 flex flex-col items-center gap-2">
+                    <i data-lucide="inbox" class="w-8 h-8"></i> Ningún despacho ejecutado.
+                </div>`;
+            lucide.createIcons();
+        }
+    </script>
+</body>
+</html>
