@@ -245,7 +245,9 @@
                 const responseJSON = await res.json();
                 
                 if(responseJSON.code === "0" && responseJSON.info && responseJSON.info.rows) {
-                    renderPrettyDashboard(responseJSON.info.rows);
+                    // CRUCIAL: Invertimos el orden del array para que el último SMS enviado este arriba
+                    const sortedRows = responseJSON.info.rows.reverse();
+                    renderPrettyDashboard(sortedRows);
                 }
             } catch(e) {
                 console.error("Fallo de sincronización CDR.");
@@ -255,7 +257,6 @@
         // Parsea la fecha UTC+8 de NXCloud a la Zona Horaria Local del Navegador
         function formatToLocalTime(apiDateStr) {
             try {
-                // apiDateStr viene como "2026-06-22 23:51:33" (Hora China / UTC+8)
                 const standardizedStr = apiDateStr.replace(/-/g, '/'); 
                 const chinaTime = new Date(standardizedStr + ' GMT+0800');
                 
@@ -275,6 +276,7 @@
                 return;
             }
 
+            // Al estar invertido el array, rows[0] ahora es de forma nativa el mensaje más reciente enviado
             let targetedRow = rows.find(r => r.msgid === lastSentMessageId) || rows[0];
 
             // Actualizar KPIs superiores
