@@ -245,8 +245,10 @@
                 const responseJSON = await res.json();
                 
                 if(responseJSON.code === "0" && responseJSON.info && responseJSON.info.rows) {
-                    // CRUCIAL: Invertimos el orden del array para que el último SMS enviado este arriba
-                    const sortedRows = responseJSON.info.rows.reverse();
+                    // ORDENAMIENTO ESTRICTO: Clasificamos explícitamente por timestamp descendente (más nuevo primero)
+                    const sortedRows = responseJSON.info.rows.sort((a, b) => {
+                        return new Date(b.date.replace(/-/g, '/')) - new Date(a.date.replace(/-/g, '/'));
+                    });
                     renderPrettyDashboard(sortedRows);
                 }
             } catch(e) {
@@ -254,13 +256,13 @@
             }
         }
 
-        // Parsea la fecha UTC+8 de NXCloud a la Zona Horaria Local del Navegador
+        // Parsea la fecha UTC+8 de NXCloud a la Zona Horaria Local del Navegador (Dispositivo del usuario)
         function formatToLocalTime(apiDateStr) {
             try {
                 const standardizedStr = apiDateStr.replace(/-/g, '/'); 
                 const chinaTime = new Date(standardizedStr + ' GMT+0800');
                 
-                return chinaTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                return chinaTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
             } catch (err) {
                 return apiDateStr.split(' ')[1] || apiDateStr;
             }
@@ -276,7 +278,7 @@
                 return;
             }
 
-            // Al estar invertido el array, rows[0] ahora es de forma nativa el mensaje más reciente enviado
+            // Al estar ordenado explícitamente, rows[0] siempre será el SMS más reciente enviado
             let targetedRow = rows.find(r => r.msgid === lastSentMessageId) || rows[0];
 
             // Actualizar KPIs superiores
